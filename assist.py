@@ -1,60 +1,59 @@
-#jnya
-
-import os
-import google.generativeai as gai 
-from dotenv import load_dotenv
+# JnyaAI 
+import ollama
 from rich.console import Console
 from rich.markdown import Markdown
-from google.api_core import exceptions
 
 def initialize():
-    load_dotenv()
-    api_key = os.getenv("API_key")
-    if not api_key:
-        raise ValueError("API key not found in environment variables.")
-        exit()
-    gai.configure(api_key=api_key)
-
-    system_prompt = (
-        "You are jnyaAI, a highly intelligent and wise AI assistant. "
-        "Your purpose is to provide knowledge, insights, and assistance. "
-        "You should communicate clearly, thoughtfully, and with a touch of wisdom. "
-        "Your responses should be formatted in Markdown."
-    )
-
-    model = gai.GenerativeModel(
-        model_name='gemini-1.5-flash',
-        system_instruction=system_prompt
-    )
-    chat = model.start_chat(history=[])
     console = Console()
-    return chat, console
+    console.print("[bold green]JnyaAI: your Assistant (Local Edition)[/bold green]")
+    console.print("Powered by a local model via Ollama(tinyllama). No internet required.")
+    console.print("Ask me anything, or type 'exit' to end the session.")
+    return console, [] 
 
 def main():
-    chat, console = initialize()
-    console.print("[bold green]jnyaAI, your Assistant is ready![/bold green]")
-    console.print("Ask me anything, or type 'exit' to end the session.")
+    console, messages = initialize()
+    messages.append({
+        'role': 'system',
+        'content': (
+            "You are JnyaAI, a highly intelligent and wise AI assistant. "
+            "Your purpose is to provide knowledge, insights, and assistance. "
+            "You should communicate clearly, thoughtfully, and with a touch of wisdom."
+        ),
+    })
 
     while True:
         try:
-           user_input=console.input("[bold blue]You:[/bold blue] ")
-           if user_input.lower() == 'exit':
-                console.print("[bold green]Exiting jnyaAI AI Assistant.[/bold green]")
+            user_input = console.input("[bold blue]You: [/bold blue]")
+
+            if user_input.lower() in ['exit', 'quit']:
+                console.print("[bold green]JnyaAI: Farewell.[/bold green]")
                 break
-           with console.status("[bold yellow]Thinking...[/bold yellow]", spinner = "dots"):
-                response = chat.send_message(user_input)
-                console.print("[bold green]jnyaAI:[/bold green]")
-                console.print(Markdown(response.text), soft_wrap=True)
-                console.print("---")
-        except exceptions.ResourceExhausted as e:
-            console.print("\n[bold yellow]jnyaAI:[/bold yellow] My connection to the digital ether is strained. I have made too many requests in a short time. Please wait a minute before asking again.")
-            console.print("[italic gray](This is a rate limit on the API's free tier. It resets every 60 seconds.)[/italic gray]")
+
+            messages.append({'role': 'user', 'content': user_input})
+
+            full_response = ""
+            with console.status("[bold green]JnyaAI is thinking...[/bold green]", spinner="dots"):
+                stream = ollama.chat(
+                    model='tinyllama', 
+                    messages=messages,
+                    stream=True,
+                )
+            
+            console.print("\n[bold green]JnyaAI:[/bold green]", end="")
+            for chunk in stream:
+                part = chunk['message']['content']
+                console.print(part, end="")
+                full_response += part
+            
+            console.print("\n---")
+            messages.append({'role': 'assistant', 'content': full_response})
+
         except KeyboardInterrupt:
-            console.print("[bold green]jnyaAI: Session ended.[/bold green]")
+            console.print("\n[bold green]JnyaAI: Session ended. Farewell.[/bold green]")
             break
         except Exception as e:
-            console.print(f"[bold red]Error:[/bold red] {str(e)}")
-            continue
-        
+            console.print(f"[bold red]An error occurred: {e}[/bold red]")
+            break
+
 if __name__ == "__main__":
     main()
